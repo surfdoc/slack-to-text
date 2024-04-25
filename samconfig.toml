@@ -1,0 +1,12 @@
+version = 1.0
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "slack-to-text"
+s3_bucket = "slack-to-text-application"
+s3_prefix = "slack-to-text"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+image_repositories = []
