@@ -3,7 +3,6 @@ import boto3
 import logging
 from botocore.exceptions import ClientError
 import json
-from twilio.rest import Client
 import pytz
 import datetime
 
@@ -33,6 +32,21 @@ USERS = {
     "U03EEQ1NSJW": "Patrick Carter"
 }
 
+CHANNELS = {
+    "G01HX869U3T": "not-just-apple-health",
+    "C01DJNGA6HK": "aws-alerts",
+    "C0295KX3ZHD": "aws-root",
+    "C02H078K7EV": "commonhealth-alerts",
+    "CQNHFRQUX": "engineering",
+    "CG3977JG5": "general",
+    "C0235QSF9L6": "mobot-tcp"
+}
+
+def check_channel(channel_id):
+    if channel_id in CHANNELS:
+        return CHANNELS[channel_id]
+    else:
+        return "Direct Message"
 
 def check_user(user_id):
     if user_id in USERS:
@@ -57,7 +71,7 @@ def is_between_time_range(dt, start_hour=8, start_minute=0, end_hour=10, end_min
 
 
 def lambda_handler(event, context):
-    print(event)
+    # print(event)
     if 'body' in event:
         body = json.loads(event['body'])
         if body['type'] == 'url_verification':
@@ -72,15 +86,18 @@ def lambda_handler(event, context):
         else:
             user = check_user(body['event']['user'])
             message = f"Slack Message from {user}: message: {body['event']['text']}"
+            if body['event']['channel']:
+                channel = check_channel(body['event']['channel'])
+                message = f"Slack Message from {user} in {channel}: message: {body['event']['text']}"
             eastern_tz=pytz.timezone('US/Eastern')
             timestamp = datetime.datetime.now(eastern_tz)
             if is_between_time_range(timestamp.replace(tzinfo=None))==True:
                 payload = {
                 'message': message,
                 }
-                lamda_client = boto3.client('lambda')
+                lambda_client = boto3.client('lambda')
                 lambda_client.invoke(
-                    FunctionName='arn:aws:lambda:us-east-1:283079628040:function:send-slack-text',
+                    FunctionName='arn:aws:lambda:us-east-1:283079628040:function:send-text',
                     InvocationType='Event',
                     Payload=json.dumps(payload)
                 )

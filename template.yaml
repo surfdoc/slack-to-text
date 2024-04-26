@@ -5,21 +5,36 @@ Globals:
   Function:
     Timeout: 300
     MemorySize: 128
-
 Resources:
   SlackToText:
     Type: AWS::Serverless::Function
     Properties:
       Handler: app.lambda_handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt SlackLambdaExecutionRole.Arn
       FunctionName: slack-to-text
       CodeUri: slack_to_text/
-      Description: A Lambda function that is triggered from a Slack event and returns a text message.
+      Description: A Lambda function that is triggered from a Slack event and ensures time window and invokes the send lambda.
       Runtime: python3.10
       Architectures:
       - x86_64
-
-  LambdaExecutionRole:
+  SendText:
+      Type: AWS::Serverless::Function
+      Properties:
+        Handler: send.lambda_handler
+        Role: !GetAtt SendLambdaExecutionRole.Arn
+        FunctionName: send-text
+        CodeUri: send_text/
+        Description: A Lambda function that is triggered from slack-to-text lambda and sends a text message via twilio api.
+        Environment: 
+          Variables:
+            TWILIO_ACCOUNT_SID: twilio-account-sid
+            TWILIO_AUTH_TOKEN: twilio-auth-token
+            SENDER_NUMBER: sender-number
+            RECEIVER_NUMBER: receiver-number
+        Runtime: python3.10
+        Architectures:
+        - x86_64
+  SlackLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -30,7 +45,7 @@ Resources:
               Service: lambda.amazonaws.com
             Action: 'sts:AssumeRole'
       Policies:
-        - PolicyName: SlackToTextPolicy
+        - PolicyName: SlackTextPolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -42,4 +57,29 @@ Resources:
                 Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/slack-to-text:*
               - Effect: Allow
                 Action: ['lambda:InvokeFunction']
-                Resource: !Sub arn:aws:lambda:us-east-1:283079628040:function:send-slack-text
+                Resource: !GetAtt SendText.Arn
+  SendLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: SendTextPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/send-text:*
+              - Effect: Allow
+                Action: 'secretsmanager:GetSecretValue'
+                Resource: 
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}*
